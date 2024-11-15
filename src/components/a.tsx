@@ -20,11 +20,13 @@ const getCombinations = (arr: string[], size: number): string[][] => {
 const Home: React.FC = () => {
   const [totalPlayers, setTotalPlayers] = useState<number>(15);
   const [teamSize, setTeamSize] = useState<number>(11);
-  const [captainCount, setCaptainCount] = useState<number>(1); // Number of captains (1-3)
+  const [captains, setCaptains] = useState<string[]>(Array(4).fill(""));
+  const [preferredPlayers, setPreferredPlayers] = useState<string[]>(
+    Array(10).fill("")
+  );
   const [players, setPlayers] = useState<string[]>(Array(15).fill(""));
-  const [captains, setCaptains] = useState<string[]>(Array(3).fill(""));
   const [teams, setTeams] = useState<
-    { captain: string[]; players: string[] }[]
+    { captains: string[]; players: string[] }[]
   >([]);
   const [error, setError] = useState<string>("");
 
@@ -34,48 +36,57 @@ const Home: React.FC = () => {
     setPlayers(newPlayers);
   };
 
-  const handleCaptainChange = (index: number, value: string) => {
+  const handleCaptainsChange = (index: number, value: string) => {
     const newCaptains = [...captains];
     newCaptains[index] = value;
-    setCaptains(newCaptains);
+    setCaptains(newCaptains.filter((c) => c.trim())); // Remove empty strings
+  };
+
+  const handlePreferredChange = (index: number, value: string) => {
+    const newPreferred = [...preferredPlayers];
+    newPreferred[index] = value;
+    setPreferredPlayers(newPreferred.filter((p) => p.trim())); // Remove empty strings
   };
 
   const handleGenerate = () => {
     const validPlayers = players.filter((player) => player.trim());
     const validCaptains = captains.filter((captain) => captain.trim());
+    const validPreferred = preferredPlayers.filter((preferred) =>
+      preferred.trim()
+    );
+
     if (validPlayers.length !== totalPlayers) {
       setError(`Please fill out exactly ${totalPlayers} player names.`);
       return;
     }
-    if (validCaptains.length < captainCount) {
-      setError(`Please provide at least ${captainCount} captains.`);
+    if (validCaptains.length > teamSize) {
+      setError(
+        `The number of captains cannot exceed the team size (${teamSize}).`
+      );
       return;
     }
-    if (teamSize < 11 || teamSize > totalPlayers) {
-      setError(`Team size must be between 11 and ${totalPlayers}.`);
+    if (validPreferred.length + validCaptains.length > teamSize) {
+      setError(
+        `The combined number of captains and preferred players cannot exceed the team size (${teamSize}).`
+      );
       return;
     }
     setError("");
 
-    // Generate combinations for the selected number of captains
-    const allTeams: { captain: string[]; players: string[] }[] = [];
+    // Generate teams
+    const guaranteedPlayers = [...validCaptains, ...validPreferred];
+    const remainingPlayers = validPlayers.filter(
+      (player) => !guaranteedPlayers.includes(player)
+    );
+    const combos = getCombinations(
+      remainingPlayers,
+      teamSize - guaranteedPlayers.length
+    );
 
-    // Combination of captains
-    const captainCombinations = getCombinations(validCaptains, captainCount);
-
-    captainCombinations.forEach((captainCombo) => {
-      const remainingPlayers = validPlayers.filter(
-        (player) => !captainCombo.includes(player)
-      );
-      const combos = getCombinations(
-        remainingPlayers,
-        teamSize - captainCombo.length
-      ); // Adjust size to account for captains
-
-      combos.forEach((combo) =>
-        allTeams.push({ captain: captainCombo, players: combo })
-      );
-    });
+    const allTeams = combos.map((combo) => ({
+      captains: validCaptains,
+      players: [...validPreferred, ...combo],
+    }));
 
     setTeams(allTeams);
   };
@@ -84,7 +95,7 @@ const Home: React.FC = () => {
     const fileContent = teams
       .map(
         (team) =>
-          `Captains: ${team.captain.join(", ")}\nPlayers: ${team.players.join(
+          `Captains: ${team.captains.join(", ")}\nPlayers: ${team.players.join(
             ", "
           )}\n`
       )
@@ -101,8 +112,8 @@ const Home: React.FC = () => {
     <div className="container">
       <h1>Dynamic Team Combination Generator</h1>
       <p>
-        Enter the total number of players, the number of captains (1-3), and the
-        team size to generate combinations.
+        Enter the total number of players, captains (0-4), preferred players
+        (0-10), and the team size to generate combinations.
       </p>
 
       <div style={{ marginBottom: "20px" }}>
@@ -138,33 +149,26 @@ const Home: React.FC = () => {
             style={{ marginLeft: "10px", width: "50px" }}
           />
         </label>
-
-        <label>
-          Number of Captains (1-3):
-          <input
-            type="number"
-            value={captainCount}
-            onChange={(e) => {
-              const value = Math.max(
-                1,
-                Math.min(3, parseInt(e.target.value) || 1)
-              );
-              setCaptainCount(value);
-            }}
-            min="1"
-            max="3"
-            style={{ marginLeft: "10px", width: "50px" }}
-          />
-        </label>
       </div>
 
-      <h3>Enter Captains (1-3 required):</h3>
-      {Array.from({ length: 3 }).map((_, index) => (
+      <h3>Enter Captains (0-4):</h3>
+      {Array.from({ length: 4 }).map((_, index) => (
         <input
           key={`captain-${index}`}
           value={captains[index] || ""}
           placeholder={`Captain ${index + 1}`}
-          onChange={(e) => handleCaptainChange(index, e.target.value)}
+          onChange={(e) => handleCaptainsChange(index, e.target.value)}
+          style={{ marginBottom: "10px", width: "300px", display: "block" }}
+        />
+      ))}
+
+      <h3>Enter Preferred Players (0-10):</h3>
+      {Array.from({ length: 10 }).map((_, index) => (
+        <input
+          key={`preferred-${index}`}
+          value={preferredPlayers[index] || ""}
+          placeholder={`Preferred Player ${index + 1}`}
+          onChange={(e) => handlePreferredChange(index, e.target.value)}
           style={{ marginBottom: "10px", width: "300px", display: "block" }}
         />
       ))}
@@ -196,7 +200,7 @@ const Home: React.FC = () => {
           <ul>
             {teams.map((team, idx) => (
               <li key={idx}>
-                <strong>Captains:</strong> {team.captain.join(", ")} <br />
+                <strong>Captains:</strong> {team.captains.join(", ")} <br />
                 <strong>Players:</strong> {team.players.join(", ")}
               </li>
             ))}
